@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user")
+
+  orders    Order[]
+  tickets   Ticket[] @relation("UserTickets")
+  }
+
+model Event {
+  id           String       @id @default(cuid())
+  title        String
+  venue        String
+  startTime    DateTime
+  endTime      DateTime
+  status       String
+  capacity     Int
+
+  ticketTypes  TicketType[]
+  orders       Order[]
+}
+
+model TicketType {
+  id        String  @id @default(cuid())
+  name      String
+  price     Int
+  quota     Int
+  soldCount Int     @default(0)
+
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id])
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  status        String
+  totalAmount   Int
+  reservedUntil DateTime?
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+
+  eventId  String
+  event    Event  @relation(fields: [eventId], references: [id])
+
+  items    OrderItem[]
+  payment  Payment?
+}
+
+model OrderItem {
+  id            String @id @default(cuid())
+  quantity      Int
+  unitPrice     Int
+
+  orderId       String
+  order         Order @relation(fields: [orderId], references: [id])
+
+  ticketTypeId  String
+  ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  tickets       Ticket[]
+}
+
+model Ticket {
+  id          String   @id @default(cuid())
+  ticketCode  String   @unique
+  attendee    String?
+  checkedInAt DateTime?
+
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  userId     String
+  user       User      @relation("UserTickets", fields: [userId], references: [id])
+}
+
+model Payment {
+  id        String  @id @default(cuid())
+  provider  String
+  status    String
+  amount    Int
+  paidAt    DateTime?
+
+  orderId   String @unique
+  order     Order  @relation(fields: [orderId], references: [id])
+}
