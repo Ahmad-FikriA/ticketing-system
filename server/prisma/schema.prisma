@@ -13,92 +13,59 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+enum TicketStatus {
+  PENDING
+  PAID
+  USED
+  CANCELLED
+}
+
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("user")
+  id       String  @id @default(cuid())
+  name     String
+  email    String  @unique
+  password String
 
-  orders    Order[]
-  tickets   Ticket[] @relation("UserTickets")
-  }
-
-model Event {
-  id           String       @id @default(cuid())
-  title        String
-  venue        String
-  startTime    DateTime
-  endTime      DateTime
-  status       String
-  capacity     Int
-
-  ticketTypes  TicketType[]
-  orders       Order[]
+  tickets  Ticket[]
 }
 
 model TicketType {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   name      String
   price     Int
   quota     Int
-  soldCount Int     @default(0)
+  soldCount Int @default(0)
 
-  eventId   String
-  event     Event   @relation(fields: [eventId], references: [id])
-
-  orderItems OrderItem[]
-}
-
-model Order {
-  id            String      @id @default(cuid())
-  status        String
-  totalAmount   Int
-  reservedUntil DateTime?
-
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-
-  eventId  String
-  event    Event  @relation(fields: [eventId], references: [id])
-
-  items    OrderItem[]
-  payment  Payment?
-}
-
-model OrderItem {
-  id            String @id @default(cuid())
-  quantity      Int
-  unitPrice     Int
-
-  orderId       String
-  order         Order @relation(fields: [orderId], references: [id])
-
-  ticketTypeId  String
-  ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
-
-  tickets       Ticket[]
+  tickets   Ticket[]
 }
 
 model Ticket {
   id          String   @id @default(cuid())
   ticketCode  String   @unique
+  status      TicketStatus
   attendee    String?
   checkedInAt DateTime?
 
-  orderItemId String
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
-  userId     String
-  user       User      @relation("UserTickets", fields: [userId], references: [id])
+  userId        String
+  user          User @relation(fields: [userId], references: [id])
+
+  ticketTypeId  String
+  ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  payments Payment[]
 }
 
 model Payment {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   provider  String
-  status    String
   amount    Int
+  status    String
   paidAt    DateTime?
 
-  orderId   String @unique
-  order     Order  @relation(fields: [orderId], references: [id])
+  ticketId  String  @unique
+  ticket    Ticket  @relation(fields: [ticketId], references: [id])
 }
