@@ -4,9 +4,12 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { port } from "./config/db.config.ts";
 import { apiLimiter } from "./middleware/rateLimiter.ts";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.ts";
 
 import ticketRouter from "./modules/tickets/ticket.routes.ts";
 import paymentRouter from "./modules/payments/payment.routes.ts";
+import ticketTypeRouter from "./modules/ticketTypes/ticketType.routes.ts";
+import authRouter from "./modules/auth/auth.routes.ts";
 
 const app = express();
 
@@ -26,9 +29,16 @@ app.use(cookieParser());
 app.use(apiLimiter);
 
 // ! API HERE
+app.use("/api/auth", authRouter);
 app.use("/api/tickets", ticketRouter);
-
+app.use("/api/ticket-types", ticketTypeRouter);
 app.use("/api/payments", paymentRouter);
+
+// 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Global error handler (must be last)
+app.use(errorHandler);
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);

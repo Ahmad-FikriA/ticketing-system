@@ -1,14 +1,20 @@
 import { prisma } from "../../../lib/prisma.ts";
 import { snap, coreApi } from "../../config/midtrans.config.ts";
+import {
+    NotFoundError,
+    BadRequestError,
+    ConflictError,
+    ServiceUnavailableError,
+} from "../../lib/errors.ts";
 
 interface CreateTransactionParams {
     ticketId: string;
     customerDetails?: {
-        firstName?: string;
-        lastName?: string;
-        email?: string;
-        phone?: string;
-    };
+        firstName?: string | undefined;
+        lastName?: string | undefined;
+        email?: string | undefined;
+        phone?: string | undefined;
+    } | undefined;
 }
 
 interface MidtransNotification {
@@ -37,15 +43,15 @@ export async function createTransaction(params: CreateTransactionParams) {
     });
 
     if (!ticket) {
-        throw new Error("Ticket not found");
+        throw new NotFoundError("Ticket not found");
     }
 
     if (ticket.status === "PAID") {
-        throw new Error("Ticket already paid");
+        throw new ConflictError("Ticket already paid");
     }
 
     if (ticket.status === "CANCELLED") {
-        throw new Error("Ticket has been cancelled");
+        throw new BadRequestError("Ticket has been cancelled");
     }
 
     // 2. Check if payment already exists for this ticket
@@ -54,7 +60,7 @@ export async function createTransaction(params: CreateTransactionParams) {
     });
 
     if (existingPayment && existingPayment.status === "success") {
-        throw new Error("Payment already completed for this ticket");
+        throw new ConflictError("Payment already completed for this ticket");
     }
 
     // 3. Generate unique order ID
@@ -135,7 +141,7 @@ export async function handleNotification(notificationJson: MidtransNotification)
     const ticketId = orderId.split("-")[1];
 
     if (!ticketId) {
-        throw new Error("Invalid order ID format");
+        throw new BadRequestError("Invalid order ID format");
     }
 
     // 3. Get ticket and payment
@@ -145,12 +151,12 @@ export async function handleNotification(notificationJson: MidtransNotification)
     });
 
     if (!ticket) {
-        throw new Error("Ticket not found");
+        throw new NotFoundError("Ticket not found");
     }
 
     const payment = ticket.payments[0];
     if (!payment) {
-        throw new Error("Payment not found");
+        throw new NotFoundError("Payment not found");
     }
 
     // 4. Update based on transaction status
@@ -235,7 +241,7 @@ export async function getPaymentByTicketId(ticketId: string) {
     });
 
     if (!payment) {
-        throw new Error("Payment not found");
+        throw new NotFoundError("Payment not found");
     }
 
     return payment;

@@ -1,142 +1,117 @@
-import * as ticketService from './ticket.service.ts';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from "express";
+import * as ticketService from "./ticket.service.ts";
+import type { 
+    PurchaseTicketInput, 
+    IdParam, 
+    TicketCodeParam, 
+    UserIdParam 
+} from "./ticket.schema.ts";
 
-export const getAllTickets = async (
-    req: Request,
+/**
+ * GET /api/tickets
+ * Get all tickets (admin only)
+ */
+export async function getAllTickets(
+    _req: Request,
     res: Response,
     next: NextFunction
-) => {
+): Promise<void> {
     try {
         const tickets = await ticketService.getAllTickets();
-        res.status(200).json(tickets);
+        res.status(200).json({ success: true, data: tickets });
     } catch (error) {
         next(error);
     }
 }
 
-export const purchaseTicket = async (
-    req: Request,
+/**
+ * POST /api/tickets/purchase
+ * Purchase a new ticket (public)
+ */
+export async function purchaseTicket(
+    req: Request<unknown, unknown, PurchaseTicketInput>,
     res: Response,
     next: NextFunction
-) => {
+): Promise<void> {
     try {
-        const { email, name, phone, emailConsent, ticketTypeId, attendee, expiryDays } = req.body;
-
-        if (!email || !name || !ticketTypeId || !attendee) {
-            return res.status(400).json({ error: "Missing required fields: email, name, ticketTypeId, attendee" });
-        }
-
-        if (!emailConsent) {
-            return res.status(400).json({ error: "You must agree to receive email notifications" });
-        }
-
-        const ticket = await ticketService.purchaseTicket({ 
-            email,
-            name,
-            phone,
-            emailConsent,
-            ticketTypeId,
-            attendee,
-            expiryDays,
-        });
-
-        res.status(201).json(ticket);
-    } catch (error: any) {
-        if (error.message === "Tickets sold out") {
-            return res.status(400).json({ error: error.message });
-        }
-        if (error.message === "Ticket type not found") {
-            return res.status(404).json({ error: error.message });
-        }
-        if (error.message === "Email consent is required") {
-            return res.status(400).json({ error: error.message });
-        }
-        if (error.message === "Failed to send ticket email") {
-            return res.status(500).json({ error: "Purchase successful but failed to send email. Please contact support." });
-        }
-        next(error);
-    }
-}
-
-export const getTicketById = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    try { 
-        const { id } = req.params;
-        if (!id) {
-            return res.status(400).json({ error: "Ticket ID is required" });
-        }
-        const ticket = await ticketService.getTicketById(id);
-        if (!ticket) {
-            return res.status(404).json({ error: "Ticket not found" });
-        }
-        res.status(200).json(ticket);
+        const ticket = await ticketService.purchaseTicket(req.body);
+        res.status(201).json({ success: true, data: ticket });
     } catch (error) {
         next(error);
     }
 }
 
-export const getTicketByCode = async (
-    req: Request,
+/**
+ * GET /api/tickets/:id
+ * Get ticket by ID (admin only)
+ */
+export async function getTicketById(
+    req: Request<IdParam>,
     res: Response,
     next: NextFunction
-) => {
+): Promise<void> {
+    try {
+        const { id } = req.params;
+        const ticket = await ticketService.getTicketById(id);
+        res.status(200).json({ success: true, data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * GET /api/tickets/code/:code
+ * Get ticket by QR code (public - for verification)
+ */
+export async function getTicketByCode(
+    req: Request<TicketCodeParam>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
     try {
         const { code } = req.params;
-        if (!code) {
-            return res.status(400).json({ error: "Ticket code is required" });
-        }
         const ticket = await ticketService.getTicketByCode(code);
-        res.status(200).json(ticket);
-    } catch (error: any) {
-        if (error.message === "Ticket not found") {
-            return res.status(404).json({ error: error.message });
-        }
+        res.status(200).json({ success: true, data: ticket });
+    } catch (error) {
         next(error);
     }
 }
 
-export const checkInTicket = async (
-    req: Request,
+/**
+ * POST /api/tickets/:id/checkin
+ * Check in a ticket (admin only)
+ */
+export async function checkInTicket(
+    req: Request<IdParam>,
     res: Response,
     next: NextFunction
-) => {
+): Promise<void> {
     try {
         const { id } = req.params;
-        if (!id) {
-            return res.status(400).json({ error: "Ticket ID is required" });
-        }
         const ticket = await ticketService.checkInTicket(id);
-        res.status(200).json({ message: "Check-in successful", ticket });
-    } catch (error: any) {
-        const clientErrors = [
-            "Ticket not found",
-            "Ticket has expired",
-            "Ticket already used",
-            "Ticket must be paid before check-in",
-        ];
-
-        if (clientErrors.includes(error.message)) {
-            return res.status(400).json({ error: error.message });
-        }
+        res.status(200).json({ 
+            success: true, 
+            message: "Check-in successful", 
+            data: ticket 
+        });
+    } catch (error) {
         next(error);
     }
 }
 
-export const getTicketsByUser = async (
-    req: Request,
+/**
+ * GET /api/tickets/user/:userId
+ * Get tickets by user ID (admin only)
+ */
+export async function getTicketsByUser(
+    req: Request<UserIdParam>,
     res: Response,
     next: NextFunction
-) => {
+): Promise<void> {
     try {
         const { userId } = req.params;
-        if (!userId) {
-            return res.status(400).json({ error: "User ID is required" });
-        }
         const tickets = await ticketService.getTicketsByUser(userId);
-        res.status(200).json(tickets);
+        res.status(200).json({ success: true, data: tickets });
     } catch (error) {
         next(error);
     }

@@ -1,33 +1,26 @@
-import { PrismaClient } from "../generated/prisma/class.ts";
+import { prisma } from "../lib/prisma.ts";
 import bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
 
 async function main() {
   // Clean up existing data
-  await prisma.ticket.deleteMany();
   await prisma.payment.deleteMany();
+  await prisma.ticket.deleteMany();
   await prisma.ticketType.deleteMany();
   await prisma.user.deleteMany();
 
-  // Create test users
-  const hashedPassword = await bcrypt.hash('password123', 10);
-
-  const user1 = await prisma.user.create({
+  // Create admin user
+  const adminPassword = await bcrypt.hash('admin123', 12);
+  
+  const admin = await prisma.user.create({
     data: {
-      name: 'John Doe',
-      email: 'john@example.com',
-      password: hashedPassword,
+      name: 'Admin',
+      email: 'admin@example.com',
+      password: adminPassword,
+      role: 'ADMIN',
     },
   });
 
-  const user2 = await prisma.user.create({
-    data: {
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      password: hashedPassword,
-    },
-  });
+  console.log('👤 Admin created: admin@example.com / admin123');
 
   // Create ticket types
   const vipTicket = await prisma.ticketType.create({
@@ -57,10 +50,11 @@ async function main() {
     },
   });
 
+  console.log('🎫 Ticket types created: VIP, Regular, Student');
   console.log('✅ Seed data created successfully!');
-  console.log('\nTest User IDs:');
-  console.log(`User 1: ${user1.id}`);
-  console.log(`User 2: ${user2.id}`);
+  console.log('\nAdmin Login:');
+  console.log('Email: admin@example.com');
+  console.log('Password: admin123');
   console.log('\nTicket Type IDs:');
   console.log(`VIP: ${vipTicket.id}`);
   console.log(`Regular: ${regularTicket.id}`);

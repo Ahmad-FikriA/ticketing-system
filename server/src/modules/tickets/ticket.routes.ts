@@ -1,26 +1,33 @@
 import { Router } from "express";
 import * as ticketController from "./ticket.controller.ts"
 import { purchaseLimiter, checkInLimiter } from "../../middleware/rateLimiter.ts";
+import { authenticate, requireAdmin } from "../auth/auth.middleware.ts";
+import { validate, validateParams } from "../../middleware/validate.ts";
+import { purchaseTicketSchema, ticketCodeParamSchema, idParamSchema, userIdParamSchema } from "./ticket.schema.ts";
 
 const router = Router();
 
-// GET /api/tickets - Get all tickets
-router.get("/", ticketController.getAllTickets);
+// ========== PUBLIC ROUTES ==========
 
 // POST /api/tickets/purchase - Purchase ticket (rate limited: 5/min)
-router.post("/purchase", purchaseLimiter, ticketController.purchaseTicket);
+router.post("/purchase", purchaseLimiter, validate(purchaseTicketSchema), ticketController.purchaseTicket);
 
-// GET /api/tickets/code/:code - Get ticket by QR code
-router.get("/code/:code", ticketController.getTicketByCode);
+// GET /api/tickets/code/:code - Get ticket by QR code (for ticket verification)
+router.get("/code/:code", validateParams(ticketCodeParamSchema), ticketController.getTicketByCode);
 
-// GET /api/tickets/user/:userId - Get tickets by user
-router.get("/user/:userId", ticketController.getTicketsByUser);
+// ========== ADMIN ROUTES ==========
 
-// GET /api/tickets/:id - Get ticket by ID
-router.get("/:id", ticketController.getTicketById);
+// GET /api/tickets - Get all tickets (admin only)
+router.get("/", authenticate, requireAdmin, ticketController.getAllTickets);
 
-// POST /api/tickets/:id/checkin - Check in (rate limited: 10/min)
-router.post("/:id/checkin", checkInLimiter, ticketController.checkInTicket);
+// GET /api/tickets/user/:userId - Get tickets by user (admin only)
+router.get("/user/:userId", authenticate, requireAdmin, validateParams(userIdParamSchema), ticketController.getTicketsByUser);
+
+// GET /api/tickets/:id - Get ticket by ID (admin only)
+router.get("/:id", authenticate, requireAdmin, validateParams(idParamSchema), ticketController.getTicketById);
+
+// POST /api/tickets/:id/checkin - Check in (admin only, rate limited: 10/min)
+router.post("/:id/checkin", authenticate, requireAdmin, validateParams(idParamSchema), checkInLimiter, ticketController.checkInTicket);
 
 
 export default router;

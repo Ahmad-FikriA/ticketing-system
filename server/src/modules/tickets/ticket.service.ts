@@ -1,6 +1,12 @@
 import { prisma } from "../../../lib/prisma.ts";
 import crypto from "crypto";
 import { sendTicketEmail } from "../../lib/email.ts";
+import { 
+    NotFoundError, 
+    BadRequestError, 
+    UnprocessableError,
+    ServiceUnavailableError 
+} from "../../lib/errors.ts";
 
 // Helper function to generate unique ticket code
 function generateTicketCode(): string {
@@ -29,15 +35,15 @@ export async function getAllTickets() {
 export async function purchaseTicket(data: { 
     email: string;
     name: string;
-    phone?: string;
+    phone?: string | undefined;
     emailConsent: boolean;
     ticketTypeId: string; 
     attendee: string;
-    expiryDays?: number;
+    expiryDays?: number | undefined;
 }) {
     // 1. Validate email consent
     if (!data.emailConsent) {
-        throw new Error("Email consent is required");
+        throw new BadRequestError("Email consent is required", "EMAIL_CONSENT_REQUIRED");
     }
 
     // 2. Check if ticket type exists and has quota
@@ -46,11 +52,11 @@ export async function purchaseTicket(data: {
     });
 
     if (!ticketType) {
-        throw new Error("Ticket type not found");
+        throw new NotFoundError("Ticket type not found", "TICKET_TYPE_NOT_FOUND");
     }
 
     if (ticketType.soldCount >= ticketType.quota) {
-        throw new Error("Tickets sold out");
+        throw new UnprocessableError("Tickets sold out", "TICKETS_SOLD_OUT");
     }
 
     // 3. Find or create user by email
@@ -70,7 +76,7 @@ export async function purchaseTicket(data: {
     }
 
     // 4. Calculate expiry date (default: 7 days from now)
-    const expiryDays = data.expiryDays || 7;
+    const expiryDays = data.expiryDays ?? 7;
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + expiryDays);
 
@@ -100,19 +106,26 @@ export async function purchaseTicket(data: {
     ]);
 
     // 7. Send ticket email
-    await sendTicketEmail({
-        to: user.email,
-        attendeeName: data.attendee,
-        ticketCode: ticket.ticketCode,
-        ticketType: ticket.ticketType.name,
-        price: ticket.ticketType.price,
-        expiryDate: expiryDate,
-    });
+    try {
+        await sendTicketEmail({
+            to: user.email,
+            attendeeName: data.attendee,
+            ticketCode: ticket.ticketCode,
+            ticketType: ticket.ticketType.name,
+            price: ticket.ticketType.price,
+            expiryDate: expiryDate,
+        });
+    } catch {
+        throw new ServiceUnavailableError(
+            "Purchase successful but failed to send email. Please contact support.",
+            "EMAIL_SEND_FAILED"
+        );
+    }
 
     return ticket;
 }
 
-export async function getTicketById(id: string, expiryDate?: Date) {
+export async function getTicketById(id: string) {
     const ticket = await prisma.ticket.findUnique({
         where: { id },
         include: {
@@ -123,7 +136,7 @@ export async function getTicketById(id: string, expiryDate?: Date) {
     });
 
     if (!ticket) {
-        return null;
+        throw new NotFoundError("Ticket not found", "TICKET_NOT_FOUND");
     }
 
     // Add expiry status to response
@@ -143,7 +156,7 @@ export async function getTicketByCode(ticketCode: string) {
     });
 
     if (!ticket) {
-        throw new Error("Ticket not found");
+        throw new NotFoundError("Ticket not found", "TICKET_NOT_FOUND");
     }
 
     return {
@@ -159,21 +172,25 @@ export async function checkInTicket(id: string) {
     });
 
     if (!ticket) {
-        throw new Error("Ticket not found");
+        throw new NotFoundError("Ticket not found", "TICKET_NOT_FOUND");
     }
 
     // 2. Validate ticket is not expired
     if (isTicketExpired(ticket.expiryDate)) {
-        throw new Error("Ticket has expired");
+        throw new UnprocessableError("Ticket has expired", "TICKET_EXPIRED");
     }
 
     // 3. Validate ticket status
     if (ticket.status === "USED") {
-        throw new Error("Ticket already used");
+        throw new UnprocessableError("Ticket already used", "TICKET_ALREADY_USED");
     }
 
     if (ticket.status === "PENDING") {
-        throw new Error("Ticket must be paid before check-in");
+        throw new UnprocessableError("Ticket must be paid before check-in", "TICKET_NOT_PAID");
+    }
+
+    if (ticket.status === "CANCELLED") {
+        throw new UnprocessableError("Ticket has been cancelled", "TICKET_CANCELLED");
     }
 
     // 4. Update ticket to USED
